@@ -81,39 +81,29 @@ wixClient.additionalFees.provideHandlers({
 });
 
 app.post('/v1/calculate-additional-fees', parseTextPlainJwt, async (req, res) => {
-    console.log(JSON.stringify({
-        event: 'incoming_request',
-        timestamp: new Date().toISOString(),
-        path: req.originalUrl,
-        headers: req.headers,
-        body: req.body
-    }));
+    const { request, metadata } = req.body;
+    console.log(JSON.stringify(request, null, 2))
+    console.log(JSON.stringify(metadata, null, 2))
 
-    const processing = (async () => {
-        try {
-            const maybePromise = wixClient.process(req, res);
-            if (maybePromise && typeof maybePromise.then === 'function') {
-                await maybePromise;
+    try {
+        const calculatedFees = [
+            {
+                code: "custom-service-fee",
+                name: "Service Fee",
+                price: "5.00",
+                taxDetails: {
+                    taxable: true
+                }
             }
-        } catch (e) {
-            console.log(JSON.stringify({ event: 'process_error', error: String(e) }));
-        }
-    })();
-
-    await Promise.race([
-        processing,
-        new Promise((resolve) => setTimeout(() => {
-            console.log(JSON.stringify({ event: 'process_timeout', timeoutMs: 25000, path: req.originalUrl }));
-            if (!res.headersSent) {
-                try { res.status(504).json({ error: 'processing_timeout' }); } catch (e) { console.log(JSON.stringify({ event: 'response_error', error: String(e) })); }
-            }
-            resolve();
-        }, 25000))
-    ]);
-
-    if (!res.headersSent) {
-        try { res.status(200).json({ status: 'received' }); } catch (e) { console.log(JSON.stringify({ event: 'response_error', error: String(e) })); }
+        ];
+        res.status(200).json({
+            additionalFees: calculatedFees,
+            currency: metadata.currency
+        });
+    } catch (error) {
+        res.status(500).send("Internal Server Error");
     }
 });
+
 
 app.listen(3001, () => console.log(JSON.stringify({ event: 'server_start', port: 3001 })));
