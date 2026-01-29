@@ -6,6 +6,27 @@ const app = express();
 
 app.use(express.text());
 
+
+const parseTextPlainJwt = (req, res, next) => {
+    if (req.is('text/plain')) {
+        let raw = '';
+        req.setEncoding('utf8');
+        req.on('data', chunk => raw += chunk);
+        req.on('end', () => {
+            try {
+                const decoded = jwt.decode(raw, { complete: false });
+                req.body = decoded;
+            } catch (e) {
+                console.log(JSON.stringify({ event: 'jwt_decode_error', error: String(e) }));
+                req.body = {};
+            }
+            next();
+        });
+    } else {
+        next();
+    }
+};
+
 const wixClient = createClient({
     auth: {
         appId: '56d969fd-3013-43ba-b5e0-a70d0051f235',
@@ -47,6 +68,31 @@ wixClient.additionalFees.provideHandlers({
             additionalFees: fees,
             currency: metadata.currency
         };
+    }
+});
+
+app.post('/v1/calculate-additional-fees', parseTextPlainJwt, async (req, res) => {
+    const { request, metadata } = req.body;
+    console.log(JSON.stringify(request, null, 2))
+    console.log(JSON.stringify(metadata, null, 2))
+
+    try {
+        const calculatedFees = [
+            {
+                code: "custom-service-fee",
+                name: "Service Fee",
+                price: "5.00",
+                taxDetails: {
+                    taxable: true
+                }
+            }
+        ];
+        res.status(200).json({
+            additionalFees: calculatedFees,
+            currency: metadata.currency
+        });
+    } catch (error) {
+        res.status(500).send("Internal Server Error");
     }
 });
 
