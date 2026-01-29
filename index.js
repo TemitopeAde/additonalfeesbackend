@@ -1,10 +1,32 @@
 ﻿import express from 'express';
 import { createClient } from '@wix/sdk';
 import { additionalFees } from '@wix/ecom/service-plugins';
+import jwt from 'jsonwebtoken';
 
 const app = express();
 
 app.use(express.text());
+
+const parseTextPlainJwt = (req, res, next) => {
+    if (req.is('text/plain')) {
+        let raw = '';
+        req.setEncoding('utf8');
+        req.on('data', chunk => raw += chunk);
+        req.on('end', () => {
+            try {
+                const decoded = jwt.decode(raw, { complete: false });
+                req.body = decoded;
+            } catch (e) {
+                console.error("Failed to decode JWT:", e);
+                req.body = {};
+            }
+            next();
+        });
+    } else {
+        next();
+    }
+};
+
 
 const wixClient = createClient({
     auth: {
@@ -25,9 +47,11 @@ xQIDAQAB
 wixClient.additionalFees.provideHandlers({
     calculateAdditionalFees: async (payload) => {
         const { request, metadata } = payload;
-        console.log(JSON.stringify(request, null, 2));
-        console.log(JSON.stringify(metadata, null, 2));
-
+        console.log(JSON.stringify({
+            event: 'calculateAdditionalFees',
+            timestamp: new Date().toISOString(),
+            payload
+        }));
 
         const fees = [];
         if (request.lineItems && request.lineItems.length > 0) {
@@ -41,15 +65,37 @@ wixClient.additionalFees.provideHandlers({
             });
         }
 
-        return {
+        const result = {
             additionalFees: fees,
             currency: metadata.currency
         };
+
+        console.log(JSON.stringify({
+            event: 'calculateAdditionalFeesResult',
+            timestamp: new Date().toISOString(),
+            result
+        }));
+
+        return result;
     }
 });
 
-app.post('/plugins-and-webhooks/*', (req, res) => {
-    wixClient.process(req);
+app.post('/v1/calculate-additional-fees', parseTextPlainJwt, (req, res) => {
+    console.log(JSON.stringify({
+        event: 'incoming_request',
+        timestamp: new Date().toISOString(),
+        path: req.originalUrl,
+        headers: req.headers,
+        body: req.body
+    }));
+
+    try {
+        wixClient.process(req);
+    } catch (e) {
+        console.log(JSON.stringify({ event: 'process_error', error: String(e) }));
+    }
+
+    res.status(200).json({ status: 'received' });
 });
 
-app.listen(3001, () => console.log('Server is running on port 3001'));
+app.listen(3001, () => console.log(JSON.stringify({ event: 'server_start', port: 3001 })));
