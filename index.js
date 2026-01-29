@@ -17,7 +17,7 @@ const parseTextPlainJwt = (req, res, next) => {
                 const decoded = jwt.decode(raw, { complete: false });
                 req.body = decoded;
             } catch (e) {
-                console.error("Failed to decode JWT:", e);
+                console.log(JSON.stringify({ event: 'jwt_decode_error', error: String(e) }));
                 req.body = {};
             }
             next();
@@ -80,7 +80,7 @@ wixClient.additionalFees.provideHandlers({
     }
 });
 
-app.post('/v1/calculate-additional-fees', parseTextPlainJwt, (req, res) => {
+app.post('/v1/calculate-additional-fees', parseTextPlainJwt, async (req, res) => {
     console.log(JSON.stringify({
         event: 'incoming_request',
         timestamp: new Date().toISOString(),
@@ -89,13 +89,31 @@ app.post('/v1/calculate-additional-fees', parseTextPlainJwt, (req, res) => {
         body: req.body
     }));
 
-    try {
-        wixClient.process(req);
-    } catch (e) {
-        console.log(JSON.stringify({ event: 'process_error', error: String(e) }));
-    }
+    const processing = (async () => {
+        try {
+            const maybePromise = wixClient.process(req, res);
+            if (maybePromise && typeof maybePromise.then === 'function') {
+                await maybePromise;
+            }
+        } catch (e) {
+            console.log(JSON.stringify({ event: 'process_error', error: String(e) }));
+        }
+    })();
 
-    res.status(200).json({ status: 'received' });
+    await Promise.race([
+        processing,
+        new Promise((resolve) => setTimeout(() => {
+            console.log(JSON.stringify({ event: 'process_timeout', timeoutMs: 25000, path: req.originalUrl }));
+            if (!res.headersSent) {
+                try { res.status(504).json({ error: 'processing_timeout' }); } catch (e) { console.log(JSON.stringify({ event: 'response_error', error: String(e) })); }
+            }
+            resolve();
+        }, 25000))
+    ]);
+
+    if (!res.headersSent) {
+        try { res.status(200).json({ status: 'received' }); } catch (e) { console.log(JSON.stringify({ event: 'response_error', error: String(e) })); }
+    }
 });
 
 app.listen(3001, () => console.log(JSON.stringify({ event: 'server_start', port: 3001 })));
