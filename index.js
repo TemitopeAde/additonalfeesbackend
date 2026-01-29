@@ -1,32 +1,10 @@
 ﻿import express from 'express';
 import { createClient } from '@wix/sdk';
 import { additionalFees } from '@wix/ecom/service-plugins';
-import jwt from 'jsonwebtoken';
 
 const app = express();
 
 app.use(express.text());
-
-const parseTextPlainJwt = (req, res, next) => {
-    if (req.is('text/plain')) {
-        let raw = '';
-        req.setEncoding('utf8');
-        req.on('data', chunk => raw += chunk);
-        req.on('end', () => {
-            try {
-                const decoded = jwt.decode(raw, { complete: false });
-                req.body = decoded;
-            } catch (e) {
-                console.log(JSON.stringify({ event: 'jwt_decode_error', error: String(e) }));
-                req.body = {};
-            }
-            next();
-        });
-    } else {
-        next();
-    }
-};
-
 
 const wixClient = createClient({
     auth: {
@@ -65,56 +43,15 @@ wixClient.additionalFees.provideHandlers({
             });
         }
 
-        const result = {
+        return {
             additionalFees: fees,
             currency: metadata.currency
         };
-
-        console.log(JSON.stringify({
-            event: 'calculateAdditionalFeesResult',
-            timestamp: new Date().toISOString(),
-            result
-        }));
-
-        return result;
     }
 });
-
-app.post('/v1/calculate-additional-fees', parseTextPlainJwt, async (req, res) => {
-    const { request, metadata } = req.body;
-    console.log(JSON.stringify(request, null, 2))
-    console.log(JSON.stringify(metadata, null, 2))
-
-    try {
-        const calculatedFees = [
-            {
-                code: "custom-service-fee",
-                name: "Service Fee",
-                price: "5.00",
-                taxDetails: {
-                    taxable: true
-                }
-            }
-        ];
-        res.status(200).json({
-            additionalFees: calculatedFees,
-            currency: metadata.currency
-        });
-    } catch (error) {
-        res.status(500).send("Internal Server Error");
-    }
-});
-
 
 app.post('/plugins-and-webhooks/*', (req, res) => {
-    console.log(`Processing Wix request: ${req.method} ${req.path}`);
-    console.log('Headers:', Object.keys(req.headers));
-    try {
-        additionalFees.process(req, res);
-    } catch (error) {
-        console.error('Error processing request:', error);
-        res.status(500).json({ error: 'Internal server error' });
-    }
+    wixClient.process(req);
 });
 
-app.listen(3001, () => console.log(JSON.stringify({ event: 'server_start', port: 3001 })));
+app.listen(3001, () => console.log('Server is running on port 3001'));
