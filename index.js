@@ -1,0 +1,55 @@
+﻿import express from 'express';
+import { createClient } from '@wix/sdk';
+import { additionalFees } from '@wix/ecom/service-plugins';
+
+const app = express();
+
+app.use(express.text());
+
+const wixClient = createClient({
+    auth: {
+        appId: '56d969fd-3013-43ba-b5e0-a70d0051f235',
+        publicKey: `-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApAd68t5oFvUNmarYhtx+
+4ZT8BJopj/6rwte4W0teid0kU4ZaJslY9V8OpoHw27OZhHUk9ikQOHARrEWjAYvX
+9jP6Kviop9MNRONDAyVxORX5XR1HUF732HRssTCkq0YFQPCQa6KXhzzWBXQ4wDf6
+S6LCphbjw9+zyORj1Ksw/hZuEfZGWA1VtHDxWtxvCiW03h6j97pQD3VLLVcyScRD
+PBt8ZZueL7RTuZPvFxHi1PgijA+gmlV3eMiTNP6+DbHP9Rf5sfgHB/3jL0MMDHDQ
+W2sEKSRkKyhA9aIsFr9tmcvxvyd7IX/NkRrYg3mXDIXa90btmzfKhKiI40Lxc/H/
+xQIDAQAB
+-----END PUBLIC KEY-----`
+    },
+    modules: { additionalFees }
+});
+
+wixClient.additionalFees.provideHandlers({
+    calculateAdditionalFees: async (payload) => {
+        const { request, metadata } = payload;
+        console.log(JSON.stringify(request, null, 2));
+        console.log(JSON.stringify(metadata, null, 2));
+
+
+        const fees = [];
+        if (request.lineItems && request.lineItems.length > 0) {
+            fees.push({
+                code: "handling-fee",
+                name: "Special Handling",
+                price: "5.00",
+                taxDetails: {
+                    taxable: true
+                }
+            });
+        }
+
+        return {
+            additionalFees: fees,
+            currency: metadata.currency
+        };
+    }
+});
+
+app.post('/plugins-and-webhooks/*', (req, res) => {
+    wixClient.process(req);
+});
+
+app.listen(3001, () => console.log('Server is running on port 3001'));
