@@ -106,4 +106,15 @@ app.post('/v1/calculate-additional-fees', parseTextPlainJwt, async (req, res) =>
 });
 
 
+app.post('/plugins-and-webhooks/*', (req, res) => {
+    console.log(`Processing Wix request: ${req.method} ${req.path}`);
+    console.log('Headers:', Object.keys(req.headers));
+    try {
+        additionalFees.process(req, res);
+    } catch (error) {
+        console.error('Error processing request:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
 app.listen(3001, () => console.log(JSON.stringify({ event: 'server_start', port: 3001 })));
