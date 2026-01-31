@@ -5,32 +5,54 @@ import cors from 'cors';
 import jwt from 'jsonwebtoken';
 
 const app = express();
+// app.use(cors());
+// app.use(express.json());
+// app.use(express.urlencoded({ extended: true }));
+
+
+const parseTextPlainJwt = (req, res, next) => {
+    if (req.is('text/plain') && typeof req.body === 'string') {
+        try {
+            const decoded = jwt.decode(req.body);
+            req.body = decoded;
+        } catch (e) {
+            console.error('JWT decode failed:', e);
+            req.body = {};
+        }
+    }
+    next();
+};
+
 app.use(cors());
+app.use(express.text({ type: 'text/plain' }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
+app.use(parseTextPlainJwt);
 
 const port = 5000;
 
-const parseTextPlainJwt = (req, res, next) => {
-    if (req.is('text/plain')) {
-        let raw = '';
-        req.setEncoding('utf8');
-        req.on('data', chunk => raw += chunk);
-        req.on('end', () => {
-            try {
-                const decoded = jwt.decode(raw, { complete: false });
-                req.body = decoded;
-            } catch (e) {
-                console.log(JSON.stringify({ event: 'jwt_decode_error', error: String(e) }));
-                req.body = {};
-            }
-            next();
-        });
-    } else {
-        next();
-    }
-};
+// const parseTextPlainJwt = (req, res, next) => {
+//     if (req.is('text/plain')) {
+//         let raw = '';
+//         req.setEncoding('utf8');
+//         req.on('data', chunk => raw += chunk);
+//         req.on('end', () => {
+//             try {
+//                 const decoded = jwt.decode(raw, { complete: false });
+//                 req.body = decoded;
+//             } catch (e) {
+//                 console.log(JSON.stringify({ event: 'jwt_decode_error', error: String(e) }));
+//                 req.body = {};
+//             }
+//             next();
+//         });
+//     } else {
+//         next();
+//     }
+// };
+
+
+
 
 const wixClient = createClient({
     auth: {
@@ -91,7 +113,6 @@ app.post('/v1/calculate-additional-fees', async (req, res) => {
         console.log(req.body);
     } catch (error) {
         console.error(error);
-
     }
 
 });
