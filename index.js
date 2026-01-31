@@ -114,6 +114,7 @@ app.post('/v1/calculate-additional-fees', async (req, res) => {
         // In a production environment, req.body is typically a decoded JWT payload.
         // You should extract the currency from the request to ensure a match.
         console.log(JSON.stringify(req.body, null, 2));
+        const instanceId = req.body.data.metadata.instanceId;
 
         const config = await fetchConfig(instanceId);
         console.log(JSON.stringify(config, null, 2));
