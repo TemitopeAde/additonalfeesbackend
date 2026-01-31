@@ -5,6 +5,8 @@ import { additionalFees } from '@wix/ecom/service-plugins';
 const app = express();
 const port = 5000;
 
+app.use(express.text());
+
 // 1. Create the Wix Client
 // Use your App ID and Public Key from the Wix Dev Center
 const wixClient = createClient({
@@ -22,6 +24,26 @@ xQIDAQAB
     },
     modules: { additionalFees }
 });
+
+const parseTextPlainJwt = (req, res, next) => {
+    if (req.is('text/plain')) {
+        let raw = '';
+        req.setEncoding('utf8');
+        req.on('data', chunk => raw += chunk);
+        req.on('end', () => {
+            try {
+                const decoded = jwt.decode(raw, { complete: false });
+                req.body = decoded;
+            } catch (e) {
+                console.log(JSON.stringify({ event: 'jwt_decode_error', error: String(e) }));
+                req.body = {};
+            }
+            next();
+        });
+    } else {
+        next();
+    }
+};
 
 // 2. Define the Handler Logic
 wixClient.additionalFees.provideHandlers({
@@ -50,9 +72,33 @@ wixClient.additionalFees.provideHandlers({
     }
 });
 
-// 3. Expose the Endpoint
-// Wix calls this endpoint with a POST request. 
-// The wixClient.process(req) method handles JWT decryption and routing to handlers.
+
+app.post('/v1/calculate-additional-fees', parseTextPlainJwt, async (req, res) => {
+    const { request, metadata } = req.body;
+    console.log(JSON.stringify(request, null, 2))
+    console.log(JSON.stringify(metadata, null, 2))
+
+    try {
+        const calculatedFees = [
+            {
+                code: "custom-service-fee",
+                name: "Service Fee",
+                price: "5.00",
+                taxDetails: {
+                    taxable: true
+                }
+            }
+        ];
+        res.status(200).json({
+            additionalFees: calculatedFees,
+            currency: metadata.currency
+        });
+    } catch (error) {
+        res.status(500).send("Internal Server Error");
+    }
+});
+
+
 app.post('/plugins-and-webhooks/*', async (req, res) => {
     try {
         const result = await wixClient.process(req);
