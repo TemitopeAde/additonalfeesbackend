@@ -5,10 +5,18 @@ import cors from 'cors';
 import jwt from 'jsonwebtoken';
 
 const app = express();
-// app.use(cors());
-// app.use(express.json());
-// app.use(express.urlencoded({ extended: true }));
 
+
+function getWixClient(instanceId) {
+    return createClient({
+        auth: AppStrategy({
+            appId: '56d969fd-3013-43ba-b5e0-a70d0051f235',
+            appSecret: '9db44f06-ea8a-49ac-a5d3-11414653340d',
+            instanceId
+        }),
+        modules: { items }
+    });
+}
 
 const parseTextPlainJwt = (req, res, next) => {
     if (req.is('text/plain') && typeof req.body === 'string') {
@@ -30,6 +38,23 @@ app.use(express.urlencoded({ extended: true }));
 app.use(parseTextPlainJwt);
 
 const port = 5000;
+
+const collectionId = '@hi-konsult/products-additonal-fees/ProductsSetup';
+
+
+async function fetchConfig(instanceId) {
+    try {
+        const wixClient = getWixClient(instanceId);
+        const results = await wixClient.items.query(collectionId).find();
+        const configItems = results.items || [];
+        console.log('📦 Wix Config:', JSON.stringify(configItems, null, 2));
+        return configItems;
+    } catch (error) {
+        console.error('❌ Error fetching configuration from Wix Data:', error);
+        return [];
+    }
+}
+
 
 const wixClient = createClient({
     auth: {
@@ -89,6 +114,10 @@ app.post('/v1/calculate-additional-fees', async (req, res) => {
         // In a production environment, req.body is typically a decoded JWT payload.
         // You should extract the currency from the request to ensure a match.
         console.log(JSON.stringify(req.body, null, 2));
+
+        const config = await fetchConfig(instanceId);
+        console.log(JSON.stringify(config, null, 2));
+
 
         return res.status(200).json({
             "additionalFees": [
