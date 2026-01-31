@@ -86,12 +86,9 @@ app.post('/plugins-and-webhooks/*', async (req, res) => {
 
 
 
-app.post('/v1/calculate-additional-fees', parseTextPlainJwt, async (req, res) => {
+app.post('/v1/calculate-additional-fees', async (req, res) => {
     try {
-        const { request, metadata } = req.body;
-        console.log(JSON.stringify(request, null, 2))
-        console.log(JSON.stringify(metadata, null, 2))
-
+        console.log(req.body);
     } catch (error) {
         console.error(error);
 
