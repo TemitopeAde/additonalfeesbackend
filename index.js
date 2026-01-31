@@ -3,30 +3,10 @@ import { createClient } from '@wix/sdk';
 import { additionalFees } from '@wix/ecom/service-plugins';
 
 const app = express();
+const port = 5000;
 
-app.use(express.text());
-
-
-const parseTextPlainJwt = (req, res, next) => {
-    if (req.is('text/plain')) {
-        let raw = '';
-        req.setEncoding('utf8');
-        req.on('data', chunk => raw += chunk);
-        req.on('end', () => {
-            try {
-                const decoded = jwt.decode(raw, { complete: false });
-                req.body = decoded;
-            } catch (e) {
-                console.log(JSON.stringify({ event: 'jwt_decode_error', error: String(e) }));
-                req.body = {};
-            }
-            next();
-        });
-    } else {
-        next();
-    }
-};
-
+// 1. Create the Wix Client
+// Use your App ID and Public Key from the Wix Dev Center
 const wixClient = createClient({
     auth: {
         appId: '56d969fd-3013-43ba-b5e0-a70d0051f235',
@@ -43,27 +23,26 @@ xQIDAQAB
     modules: { additionalFees }
 });
 
+// 2. Define the Handler Logic
 wixClient.additionalFees.provideHandlers({
     calculateAdditionalFees: async (payload) => {
         const { request, metadata } = payload;
-        console.log(JSON.stringify({
-            event: 'calculateAdditionalFees',
-            timestamp: new Date().toISOString(),
-            payload
-        }));
 
-        const fees = [];
-        if (request.lineItems && request.lineItems.length > 0) {
-            fees.push({
-                code: "handling-fee",
-                name: "Special Handling",
-                price: "5.00",
-                taxDetails: {
-                    taxable: true
-                }
-            });
-        }
+        // Custom logic: Add a $5 fee if there are more than 3 items
+        let fees = [];
+        const totalQuantity = request.lineItems.reduce((acc, item) => acc + item.quantity, 0);
 
+        fees.push({
+            code: "bulk-handling-fee",
+            name: "Bulk Handling Fee",
+            price: "5.00",
+            taxDetails: {
+                taxable: false
+            }
+        });
+        // The currency returned MUST match the site's currency (metadata.currency)
+        // as specified in the SDK reference: 
+        // https://dev.wix.com/docs/api-reference/business-solutions/e-commerce/extensions/additional-fees/additional-fees-service-plugin/calculate-additional-fees?apiView=SDK
         return {
             additionalFees: fees,
             currency: metadata.currency
@@ -71,33 +50,19 @@ wixClient.additionalFees.provideHandlers({
     }
 });
 
-app.post('/v1/calculate-additional-fees', parseTextPlainJwt, async (req, res) => {
-    const { request, metadata } = req.body;
-    console.log(JSON.stringify(request, null, 2))
-    console.log(JSON.stringify(metadata, null, 2))
-
+// 3. Expose the Endpoint
+// Wix calls this endpoint with a POST request. 
+// The wixClient.process(req) method handles JWT decryption and routing to handlers.
+app.post('/plugins-and-webhooks/*', async (req, res) => {
     try {
-        const calculatedFees = [
-            {
-                code: "custom-service-fee",
-                name: "Service Fee",
-                price: "5.00",
-                taxDetails: {
-                    taxable: true
-                }
-            }
-        ];
-        res.status(200).json({
-            additionalFees: calculatedFees,
-            currency: metadata.currency
-        });
+        const result = await wixClient.process(req);
+        res.status(200).json(result);
     } catch (error) {
-        res.status(500).send("Internal Server Error");
+        console.error('Error processing request:', error);
+        res.status(500).send('Internal Server Error');
     }
 });
 
-app.post('/plugins-and-webhooks/*', (req, res) => {
-    wixClient.process(req);
+app.listen(port, () => {
+    console.log(`Additional Fees service listening at http://localhost:${port}`);
 });
-
-app.listen(3001, () => console.log('Server is running on port 3001'));
