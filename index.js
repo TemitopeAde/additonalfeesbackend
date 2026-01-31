@@ -30,6 +30,8 @@ xQIDAQAB
 wixClient.additionalFees.provideHandlers({
     calculateAdditionalFees: async (payload) => {
         const { request, metadata } = payload;
+        console.log(JSON.stringify(request, null, 2));
+
 
         let fees = [];
         const totalQuantity = request.lineItems.reduce((acc, item) => acc + item.quantity, 0);
