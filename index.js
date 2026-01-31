@@ -3,6 +3,7 @@ import { createClient } from '@wix/sdk';
 import { additionalFees } from '@wix/ecom/service-plugins';
 import cors from 'cors';
 
+
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -61,6 +62,11 @@ app.post('/plugins-and-webhooks/*', async (req, res) => {
         console.error('Error processing request:', error);
         res.status(500).send('Internal Server Error');
     }
+});
+
+app.post('/v1/calculate-additional-fees', parseTextPlainJwt, async (req, res) => {
+    console.log(req);
+
 });
 
 app.listen(port, () => {
