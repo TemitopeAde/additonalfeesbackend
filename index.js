@@ -84,12 +84,29 @@ app.post('/plugins-and-webhooks/*', async (req, res) => {
 });
 
 
-
 app.post('/v1/calculate-additional-fees', async (req, res) => {
     try {
+        // In a production environment, req.body is typically a decoded JWT payload.
+        // You should extract the currency from the request to ensure a match.
         console.log(JSON.stringify(req.body, null, 2));
+
+        return res.status(200).json({
+            "additionalFees": [
+                {
+                    "code": "sample-handling-fee",
+                    "name": "Special Handling Fee",
+                    "price": "5.00", // The price must be a string and exclude taxes.
+                    "taxDetails": {
+                        "taxable": true // Indicates if this fee is subject to tax.
+                    },
+                    "lineItemIds": ["00000000-0000-0000-0000-000000000001"] // Optional: associate the fee with specific line items.
+                }
+            ],
+            "currency": "USD" // This must match the site's currency (e.g., req.body.currency).
+        });
     } catch (error) {
         console.error(error);
+        return res.status(500).json({ error: "Internal Server Error" });
     }
 
 });
