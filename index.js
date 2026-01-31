@@ -31,29 +31,6 @@ app.use(parseTextPlainJwt);
 
 const port = 5000;
 
-// const parseTextPlainJwt = (req, res, next) => {
-//     if (req.is('text/plain')) {
-//         let raw = '';
-//         req.setEncoding('utf8');
-//         req.on('data', chunk => raw += chunk);
-//         req.on('end', () => {
-//             try {
-//                 const decoded = jwt.decode(raw, { complete: false });
-//                 req.body = decoded;
-//             } catch (e) {
-//                 console.log(JSON.stringify({ event: 'jwt_decode_error', error: String(e) }));
-//                 req.body = {};
-//             }
-//             next();
-//         });
-//     } else {
-//         next();
-//     }
-// };
-
-
-
-
 const wixClient = createClient({
     auth: {
         appId: '56d969fd-3013-43ba-b5e0-a70d0051f235',
@@ -110,7 +87,7 @@ app.post('/plugins-and-webhooks/*', async (req, res) => {
 
 app.post('/v1/calculate-additional-fees', async (req, res) => {
     try {
-        console.log(req.body);
+        console.log(JSON.stringify(req.body, null, 2));
     } catch (error) {
         console.error(error);
     }
