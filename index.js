@@ -3,6 +3,7 @@ import { AppStrategy, createClient } from '@wix/sdk';
 import { additionalFees } from '@wix/ecom/service-plugins';
 import cors from 'cors';
 import jwt from 'jsonwebtoken';
+import { items } from '@wix/data';
 
 const app = express();
 
