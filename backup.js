@@ -1,4 +1,4 @@
-﻿import express from 'express';
+import express from 'express';
 import { AppStrategy, createClient } from '@wix/sdk';
 import { additionalFees } from '@wix/ecom/service-plugins';
 import cors from 'cors';
@@ -112,97 +112,31 @@ app.post('/plugins-and-webhooks/*', async (req, res) => {
 
 app.post('/v1/calculate-additional-fees', async (req, res) => {
     try {
+        // In a production environment, req.body is typically a decoded JWT payload.
+        // You should extract the currency from the request to ensure a match.
         console.log(JSON.stringify(req.body, null, 2));
+        const instanceId = req.body.data.metadata.instanceId;
 
-        const { request, metadata } = req.body.data;
-        const instanceId = metadata.instanceId;
-        const currency = metadata.currency || 'USD';
-        const subtotal = parseFloat(request.subtotal) || 0;
+        const config = await fetchConfig(instanceId);
+        console.log(JSON.stringify(config, null, 2));
 
-        // Fetch fee configurations from Wix collection
-        const configItems = await fetchConfig(instanceId);
-
-        // Get all product IDs from line items
-        const lineItems = request.lineItems || [];
-
-        // Collect fees for all products in the cart
-        const feeMap = new Map(); // Use map to aggregate fees by optionId
-
-        for (const lineItem of lineItems) {
-            const productId = lineItem.catalogReference?.catalogItemId;
-            const quantity = lineItem.quantity || 1;
-            const itemPrice = parseFloat(lineItem.price) || 0;
-            const lineItemTotal = itemPrice * quantity;
-
-            if (!productId) continue;
-
-            // Find fee config for this product
-            const productConfig = configItems.find(c => c.productId === productId);
-
-            if (!productConfig || !productConfig.fees) continue;
-
-            // Parse fees JSON string
-            let fees = [];
-            try {
-                fees = typeof productConfig.fees === 'string'
-                    ? JSON.parse(productConfig.fees)
-                    : productConfig.fees;
-            } catch (e) {
-                console.error('Error parsing fees:', e);
-                continue;
-            }
-
-            // Calculate each fee
-            for (const fee of fees) {
-                if (!fee.enabled) continue;
-
-                let feeAmount = 0;
-
-                switch (fee.type) {
-                    case 'FIXED':
-                        feeAmount = fee.value;
-                        break;
-                    case 'PERCENTAGE':
-                        feeAmount = (fee.value / 100) * lineItemTotal;
-                        break;
-                    case 'PER_ITEM':
-                        feeAmount = fee.value * quantity;
-                        break;
-                    default:
-                        feeAmount = fee.value;
-                }
-
-                // Aggregate fees by optionId
-                if (feeMap.has(fee.optionId)) {
-                    const existing = feeMap.get(fee.optionId);
-                    existing.price += feeAmount;
-                } else {
-                    feeMap.set(fee.optionId, {
-                        code: fee.optionId,
-                        name: fee.label || fee.optionId,
-                        price: feeAmount,
-                        taxDetails: {
-                            taxable: true
-                        }
-                    });
-                }
-            }
-        }
-
-        // Convert fee map to array and format prices
-        const additionalFees = Array.from(feeMap.values()).map(fee => ({
-            ...fee,
-            price: fee.price.toFixed(2)
-        }));
-
-        console.log('📦 Calculated Additional Fees:', JSON.stringify(additionalFees, null, 2));
 
         return res.status(200).json({
-            additionalFees,
-            currency
+            "additionalFees": [
+                {
+                    "code": "sample-handling-fee",
+                    "name": "Special Handling Fee",
+                    "price": "5.00", // The price must be a string and exclude taxes.
+                    "taxDetails": {
+                        "taxable": true // Indicates if this fee is subject to tax.
+                    },
+                    "lineItemIds": ["00000000-0000-0000-0000-000000000001"] // Optional: associate the fee with specific line items.
+                }
+            ],
+            "currency": "USD" // This must match the site's currency (e.g., req.body.currency).
         });
     } catch (error) {
-        console.error('Error calculating additional fees:', error);
+        console.error(error);
         return res.status(500).json({ error: "Internal Server Error" });
     }
 
