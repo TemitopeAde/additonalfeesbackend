@@ -208,6 +208,50 @@ app.post('/v1/calculate-additional-fees', async (req, res) => {
 
 });
 
+
+app.post('/webhook', express.text(), (request, response) => {
+    let event;
+    let eventData;
+
+    const PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApAd68t5oFvUNmarYhtx+
+4ZT8BJopj/6rwte4W0teid0kU4ZaJslY9V8OpoHw27OZhHUk9ikQOHARrEWjAYvX
+9jP6Kviop9MNRONDAyVxORX5XR1HUF732HRssTCkq0YFQPCQa6KXhzzWBXQ4wDf6
+S6LCphbjw9+zyORj1Ksw/hZuEfZGWA1VtHDxWtxvCiW03h6j97pQD3VLLVcyScRD
+PBt8ZZueL7RTuZPvFxHi1PgijA+gmlV3eMiTNP6+DbHP9Rf5sfgHB/3jL0MMDHDQ
+W2sEKSRkKyhA9aIsFr9tmcvxvyd7IX/NkRrYg3mXDIXa90btmzfKhKiI40Lxc/H/
+xQIDAQAB
+-----END PUBLIC KEY-----`;
+
+
+    try {
+        const rawPayload = jwt.verify(request.body, PUBLIC_KEY);
+        event = JSON.parse(rawPayload.data);
+        eventData = JSON.parse(event.data);
+    } catch (err) {
+        console.error(err);
+        response.status(400).send(`Webhook error: ${err.message}`);
+        return;
+    }
+
+    switch (event.eventType) {
+        case "AppInstalled":
+            console.log(`AppInstalled event received with data:`, eventData);
+            console.log(`App instance ID:`, event.instanceId);
+            //
+            // handle your event here
+            //
+            break;
+        default:
+            console.log(`Received unknown event type: ${event.eventType}`);
+            break;
+    }
+
+    response.status(200).send();
+
+});
+
+
 app.listen(port, () => {
     console.log(`Additional Fees service listening at http://localhost:${port}`);
 });
