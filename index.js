@@ -1,9 +1,11 @@
 ﻿import express from 'express';
 import { AppStrategy, createClient } from '@wix/sdk';
 import { additionalFees } from '@wix/ecom/service-plugins';
+import { appInstances } from '@wix/app-management';
 import cors from 'cors';
 import jwt from 'jsonwebtoken';
 import { items } from '@wix/data';
+import { hasEntitledPlan } from './entitlement.js';
 
 const app = express();
 
@@ -15,7 +17,7 @@ function getWixClient(instanceId) {
             appSecret: '9db44f06-ea8a-49ac-a5d3-11414653340d',
             instanceId
         }),
-        modules: { items }
+        modules: { items, appInstances }
     });
 }
 
@@ -78,9 +80,20 @@ wixClient.additionalFees.provideHandlers({
         const { request, metadata } = payload;
         console.log(JSON.stringify(request, null, 2));
 
+        const currency = metadata?.currency;
+        const entitled = await hasEntitledPlan(metadata, getWixClient);
+
+        if (!entitled) {
+            console.log('[plugin] Additional fees denied by app entitlement');
+            return {
+                additionalFees: [],
+                currency
+            };
+        }
+
+        console.log('[plugin] Additional fees enabled by app entitlement');
 
         let fees = [];
-        const totalQuantity = request.lineItems.reduce((acc, item) => acc + item.quantity, 0);
 
         fees.push({
             code: "bulk-handling-fee",
@@ -93,7 +106,7 @@ wixClient.additionalFees.provideHandlers({
 
         return {
             additionalFees: fees,
-            currency: metadata.currency
+            currency
         };
     }
 });
@@ -118,6 +131,18 @@ app.post('/v1/calculate-additional-fees', async (req, res) => {
         const instanceId = metadata.instanceId;
         const currency = metadata.currency || 'USD';
         const subtotal = parseFloat(request.subtotal) || 0;
+
+        const entitled = await hasEntitledPlan(metadata, getWixClient);
+
+        if (!entitled) {
+            console.log('[v1] Additional fees denied by app entitlement');
+            return res.status(200).json({
+                additionalFees: [],
+                currency
+            });
+        }
+
+        console.log('[v1] Additional fees enabled by app entitlement');
 
         // Fetch fee configurations from Wix collection
         const configItems = await fetchConfig(instanceId);
